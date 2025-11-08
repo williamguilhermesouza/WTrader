@@ -15,16 +15,14 @@ import { OrderBook } from '@/components/OrderBook';
 import type { BookWindow } from '@/types';
 import './App.css';
 
-let bookIdCounter = 0;
-
 function App() {
   const dockLayoutRef = useRef<DockLayout>(null);
+  const bookIdCounterRef = useRef(0);
   const [books, setBooks] = useState<BookWindow[]>([
     { id: 'book-0', symbol: 'BTCUSDT', title: 'BTC/USDT' },
   ]);
   const [dialogOpen, setDialogOpen] = useState(false);
-
-  const defaultLayout: LayoutData = {
+  const [layout, setLayout] = useState<LayoutData>({
     dockbox: {
       mode: 'horizontal',
       children: [
@@ -35,12 +33,13 @@ function App() {
               title: 'BTC/USDT',
               content: <OrderBook symbol="BTCUSDT" />,
               cached: true,
+              closable: true,
             },
           ],
         },
       ],
     },
-  };
+  });
 
   const loadTab = (data: TabData) => {
     // Load tab content based on saved data
@@ -51,14 +50,15 @@ function App() {
         ...data,
         content: <OrderBook symbol={symbol} />,
         cached: true,
+        closable: true,
       };
     }
     return data;
   };
 
   const createNewBook = (symbol: string) => {
-    bookIdCounter++;
-    const newBookId = `book-${bookIdCounter}`;
+    bookIdCounterRef.current++;
+    const newBookId = `book-${bookIdCounterRef.current}`;
     const title = `${symbol.slice(0, -4)}/${symbol.slice(-4)}`;
 
     const newBook: BookWindow = {
@@ -67,20 +67,42 @@ function App() {
       title,
     };
 
-    setBooks([...books, newBook]);
+    // Update books state
+    setBooks(prevBooks => [...prevBooks, newBook]);
 
-    // Add new tab to dock layout
+    // Create new tab
     const newTab: TabData = {
       id: newBookId,
       title,
       content: <OrderBook symbol={symbol} />,
       cached: true,
+      closable: true,
     };
 
-    // Use the dock layout API to add a new tab
-    if (dockLayoutRef.current) {
-      dockLayoutRef.current.dockMove(newTab, null, 'middle');
-    }
+    // Update layout to add the new tab
+    setLayout(prevLayout => {
+      // Create a new layout by spreading, not using JSON.stringify
+      const newLayout: LayoutData = {
+        ...prevLayout,
+        dockbox: prevLayout.dockbox ? {
+          ...prevLayout.dockbox,
+          children: prevLayout.dockbox.children && Array.isArray(prevLayout.dockbox.children)
+            ? prevLayout.dockbox.children.map((child, index) => {
+                if (index === 0 && 'tabs' in child) {
+                  // Add new tab to the first panel
+                  return {
+                    ...child,
+                    tabs: [...(child.tabs || []), newTab],
+                  };
+                }
+                return child;
+              })
+            : prevLayout.dockbox.children,
+        } : undefined,
+      };
+      
+      return newLayout;
+    });
   };
 
   const handleNewBook = () => {
@@ -143,7 +165,8 @@ function App() {
       <div className="flex-1 relative">
         <DockLayout
           ref={dockLayoutRef}
-          defaultLayout={defaultLayout}
+          layout={layout}
+          onLayoutChange={setLayout}
           loadTab={loadTab}
           style={{ position: 'absolute', inset: 0 }}
         />

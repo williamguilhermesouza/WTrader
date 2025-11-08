@@ -3,7 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 import asyncio
 import json
 import websockets
-from typing import Set
+from typing import Dict, Set
 
 app = FastAPI()
 
@@ -16,54 +16,70 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Store active WebSocket connections
-active_connections: Set[WebSocket] = set()
+# Store active WebSocket connections per symbol
+# symbol -> Set of WebSocket connections
+symbol_connections: Dict[str, Set[WebSocket]] = {}
+
+# Store Binance WebSocket tasks per symbol
+binance_tasks: Dict[str, asyncio.Task] = {}
 
 
-async def binance_orderbook_stream(symbol: str = "btcusdt"):
-    """Connect to Binance WebSocket and stream order book data"""
-    url = f"wss://stream.binance.com:9443/ws/{symbol}@depth20@100ms"
+async def binance_orderbook_stream(symbol: str):
+    """Connect to Binance WebSocket and stream order book data for a specific symbol"""
+    symbol_lower = symbol.lower()
+    url = f"wss://stream.binance.com:9443/ws/{symbol_lower}@depth20@100ms"
     
-    try:
-        async with websockets.connect(url) as websocket:
-            while True:
-                try:
-                    message = await websocket.recv()
-                    data = json.loads(message)
-                    
-                    # Process and forward to all connected clients
-                    orderbook_data = {
-                        "symbol": symbol.upper(),
-                        "lastUpdateId": data.get("lastUpdateId"),
-                        "bids": data.get("bids", [])[:10],  # Top 10 bids
-                        "asks": data.get("asks", [])[:10],  # Top 10 asks
-                    }
-                    
-                    # Send to all connected clients
-                    disconnected = set()
-                    for connection in active_connections:
-                        try:
-                            await connection.send_json(orderbook_data)
-                        except Exception:
-                            disconnected.add(connection)
-                    
-                    # Remove disconnected clients
-                    active_connections.difference_update(disconnected)
-                    
-                except websockets.exceptions.ConnectionClosed:
-                    print("Binance WebSocket connection closed, reconnecting...")
-                    break
-                except Exception as e:
-                    print(f"Error processing message: {e}")
-                    
-    except Exception as e:
-        print(f"Error connecting to Binance: {e}")
+    print(f"Starting Binance stream for {symbol.upper()}")
+    
+    while True:
+        try:
+            async with websockets.connect(url) as websocket:
+                while True:
+                    try:
+                        # Check if there are still clients subscribed to this symbol
+                        if symbol not in symbol_connections or len(symbol_connections[symbol]) == 0:
+                            print(f"No more clients for {symbol.upper()}, closing stream")
+                            return
+                        
+                        message = await websocket.recv()
+                        data = json.loads(message)
+                        
+                        # Process and forward to all connected clients for this symbol
+                        orderbook_data = {
+                            "symbol": symbol.upper(),
+                            "lastUpdateId": data.get("lastUpdateId"),
+                            "bids": data.get("bids", [])[:10],  # Top 10 bids
+                            "asks": data.get("asks", [])[:10],  # Top 10 asks
+                        }
+                        
+                        # Send to all clients subscribed to this symbol
+                        if symbol in symbol_connections:
+                            disconnected = set()
+                            for connection in symbol_connections[symbol]:
+                                try:
+                                    await connection.send_json(orderbook_data)
+                                except Exception:
+                                    disconnected.add(connection)
+                            
+                            # Remove disconnected clients
+                            symbol_connections[symbol].difference_update(disconnected)
+                        
+                    except websockets.exceptions.ConnectionClosed:
+                        print(f"Binance WebSocket connection closed for {symbol.upper()}, reconnecting...")
+                        break
+                    except Exception as e:
+                        print(f"Error processing message for {symbol.upper()}: {e}")
+                        
+        except Exception as e:
+            print(f"Error connecting to Binance for {symbol.upper()}: {e}")
+            await asyncio.sleep(5)  # Wait before reconnecting
 
 
-@app.on_event("startup")
-async def startup_event():
-    """Start the Binance WebSocket stream on application startup"""
-    asyncio.create_task(binance_orderbook_stream("btcusdt"))
+def start_binance_stream(symbol: str):
+    """Start a Binance stream for a symbol if not already running"""
+    if symbol not in binance_tasks or binance_tasks[symbol].done():
+        binance_tasks[symbol] = asyncio.create_task(binance_orderbook_stream(symbol))
+        print(f"Created Binance stream task for {symbol.upper()}")
 
 
 @app.get("/")
@@ -71,23 +87,39 @@ async def root():
     return {"message": "Binance Order Book API", "status": "running"}
 
 
-@app.websocket("/ws/orderbook")
-async def websocket_endpoint(websocket: WebSocket):
-    """WebSocket endpoint for clients to receive order book updates"""
+@app.websocket("/ws/orderbook/{symbol}")
+async def websocket_endpoint(websocket: WebSocket, symbol: str):
+    """WebSocket endpoint for clients to receive order book updates for a specific symbol"""
+    symbol = symbol.upper()
+    
     await websocket.accept()
-    active_connections.add(websocket)
+    print(f"Client connected for {symbol}")
+    
+    # Add connection to the symbol's connection set
+    if symbol not in symbol_connections:
+        symbol_connections[symbol] = set()
+    symbol_connections[symbol].add(websocket)
+    
+    # Start Binance stream for this symbol if not already running
+    start_binance_stream(symbol)
     
     try:
         while True:
-            # Keep connection alive
+            # Keep connection alive and wait for messages from client
             await asyncio.sleep(1)
     except WebSocketDisconnect:
-        active_connections.remove(websocket)
-        print("Client disconnected")
+        print(f"Client disconnected from {symbol}")
     except Exception as e:
-        print(f"WebSocket error: {e}")
-        if websocket in active_connections:
-            active_connections.remove(websocket)
+        print(f"WebSocket error for {symbol}: {e}")
+    finally:
+        # Remove connection
+        if symbol in symbol_connections and websocket in symbol_connections[symbol]:
+            symbol_connections[symbol].remove(websocket)
+            
+        # Clean up if no more connections for this symbol
+        if symbol in symbol_connections and len(symbol_connections[symbol]) == 0:
+            del symbol_connections[symbol]
+            print(f"No more connections for {symbol}, stream will close")
 
 
 if __name__ == "__main__":
