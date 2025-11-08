@@ -83,38 +83,48 @@ function App() {
 
     // Update layout to add the new tab
     setLayout(prevLayout => {
-      // If no layout or no children, create a new panel structure
-      if (!prevLayout.dockbox || !prevLayout.dockbox.children || prevLayout.dockbox.children.length === 0) {
+      // Check if we have any existing panels with tabs
+      let hasExistingPanel = false;
+      
+      if (prevLayout.dockbox?.children && Array.isArray(prevLayout.dockbox.children)) {
+        for (const child of prevLayout.dockbox.children) {
+          if ('tabs' in child && child.tabs && child.tabs.length > 0) {
+            hasExistingPanel = true;
+            break;
+          }
+        }
+      }
+
+      // If no existing panel with tabs, create a fresh layout
+      if (!hasExistingPanel) {
         return {
           dockbox: {
             mode: 'horizontal',
             children: [
               {
                 tabs: [newTab],
+                panelLock: {},
               },
             ],
           },
         };
       }
 
-      // Find the first panel with tabs and add to it
+      // Add to first panel with tabs
       const newLayout: LayoutData = {
         ...prevLayout,
-        dockbox: prevLayout.dockbox ? {
-          ...prevLayout.dockbox,
-          children: prevLayout.dockbox.children && Array.isArray(prevLayout.dockbox.children)
-            ? prevLayout.dockbox.children.map((child, index) => {
-                if (index === 0 && 'tabs' in child) {
-                  // Add new tab to the first panel
-                  return {
-                    ...child,
-                    tabs: [...(child.tabs || []), newTab],
-                  };
-                }
-                return child;
-              })
-            : [{ tabs: [newTab] }],
-        } : { mode: 'horizontal', children: [{ tabs: [newTab] }] },
+        dockbox: {
+          ...prevLayout.dockbox!,
+          children: prevLayout.dockbox!.children!.map((child, index) => {
+            if (index === 0 && 'tabs' in child) {
+              return {
+                ...child,
+                tabs: [...(child.tabs || []), newTab],
+              };
+            }
+            return child;
+          }),
+        },
       };
       
       return newLayout;
