@@ -14,6 +14,15 @@
   color: hsl(var(--muted-foreground));
   border: 1px solid hsl(var(--border));
   border-bottom: none;
+  padding: 8px 12px;
+  min-width: 100px;
+  max-width: 200px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  display: flex;
+  align-items: center;
+  gap: 8px;
 }
 
 .dock-tab:hover {
@@ -28,6 +37,12 @@
 
 .dock-tab-close-btn {
   opacity: 0.5;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .dock-tab-close-btn:hover {
@@ -37,9 +52,50 @@
 .dock-nav-wrap {
   background: hsl(var(--card));
   border-bottom: 1px solid hsl(var(--border));
+  min-height: 32px;
+  display: flex;
+  align-items: stretch;
+}
+
+.dock-nav {
+  display: flex;
+  align-items: stretch;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.dock-nav::-webkit-scrollbar {
+  height: 4px;
+}
+
+.dock-nav::-webkit-scrollbar-track {
+  background: hsl(var(--muted));
+}
+
+.dock-nav::-webkit-scrollbar-thumb {
+  background: hsl(var(--border));
+  border-radius: 2px;
 }
 
 .dock-bar {
   background: hsl(var(--muted));
+  border: 1px solid hsl(var(--border));
+}
+
+.dock-tab-text {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  flex: 1;
+}
+
+.dock-panel-max-btn,
+.dock-panel-new-btn {
+  opacity: 0.5;
+}
+
+.dock-panel-max-btn:hover,
+.dock-panel-new-btn:hover {
+  opacity: 1;
 }
 

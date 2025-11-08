@@ -42,16 +42,18 @@ function App() {
   });
 
   const loadTab = (data: TabData) => {
-    // Load tab content based on saved data
+    // Always ensure content is present
     if (data.id && data.id.startsWith('book-')) {
       const bookData = books.find(b => b.id === data.id);
-      const symbol = bookData?.symbol || 'BTCUSDT';
-      return {
-        ...data,
-        content: <OrderBook symbol={symbol} />,
-        cached: true,
-        closable: true,
-      };
+      if (bookData) {
+        return {
+          ...data,
+          title: bookData.title,
+          content: <OrderBook symbol={bookData.symbol} />,
+          cached: true,
+          closable: true,
+        };
+      }
     }
     return data;
   };
@@ -67,7 +69,7 @@ function App() {
       title,
     };
 
-    // Update books state
+    // Update books state first
     setBooks(prevBooks => [...prevBooks, newBook]);
 
     // Create new tab
@@ -81,7 +83,21 @@ function App() {
 
     // Update layout to add the new tab
     setLayout(prevLayout => {
-      // Create a new layout by spreading, not using JSON.stringify
+      // If no layout or no children, create a new panel structure
+      if (!prevLayout.dockbox || !prevLayout.dockbox.children || prevLayout.dockbox.children.length === 0) {
+        return {
+          dockbox: {
+            mode: 'horizontal',
+            children: [
+              {
+                tabs: [newTab],
+              },
+            ],
+          },
+        };
+      }
+
+      // Find the first panel with tabs and add to it
       const newLayout: LayoutData = {
         ...prevLayout,
         dockbox: prevLayout.dockbox ? {
@@ -97,8 +113,8 @@ function App() {
                 }
                 return child;
               })
-            : prevLayout.dockbox.children,
-        } : undefined,
+            : [{ tabs: [newTab] }],
+        } : { mode: 'horizontal', children: [{ tabs: [newTab] }] },
       };
       
       return newLayout;
