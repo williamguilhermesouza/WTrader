@@ -23,11 +23,15 @@ symbol_connections: Dict[str, Set[WebSocket]] = {}
 # Store Binance WebSocket tasks per symbol
 binance_tasks: Dict[str, asyncio.Task] = {}
 
+# Store last prices per symbol
+last_prices: Dict[str, str] = {}
+
 
 async def binance_orderbook_stream(symbol: str):
     """Connect to Binance WebSocket and stream order book data for a specific symbol"""
     symbol_lower = symbol.lower()
-    url = f"wss://stream.binance.com:9443/ws/{symbol_lower}@depth20@100ms"
+    # Combine depth and ticker streams
+    url = f"wss://stream.binance.com:9443/stream?streams={symbol_lower}@depth20@100ms/{symbol_lower}@ticker"
     
     print(f"Starting Binance stream for {symbol.upper()}")
     
@@ -44,25 +48,37 @@ async def binance_orderbook_stream(symbol: str):
                         message = await websocket.recv()
                         data = json.loads(message)
                         
-                        # Process and forward to all connected clients for this symbol
-                        orderbook_data = {
-                            "symbol": symbol.upper(),
-                            "lastUpdateId": data.get("lastUpdateId"),
-                            "bids": data.get("bids", [])[:10],  # Top 10 bids
-                            "asks": data.get("asks", [])[:10],  # Top 10 asks
-                        }
-                        
-                        # Send to all clients subscribed to this symbol
-                        if symbol in symbol_connections:
-                            disconnected = set()
-                            for connection in symbol_connections[symbol]:
-                                try:
-                                    await connection.send_json(orderbook_data)
-                                except Exception:
-                                    disconnected.add(connection)
+                        # Handle combined stream format
+                        if "stream" in data:
+                            stream_name = data["stream"]
+                            stream_data = data["data"]
                             
-                            # Remove disconnected clients
-                            symbol_connections[symbol].difference_update(disconnected)
+                            # Update last price from ticker
+                            if "ticker" in stream_name:
+                                last_prices[symbol] = stream_data.get("c", "0")  # 'c' is last price
+                            
+                            # Process depth updates
+                            elif "depth" in stream_name:
+                                # Process and forward to all connected clients for this symbol
+                                orderbook_data = {
+                                    "symbol": symbol.upper(),
+                                    "lastUpdateId": stream_data.get("lastUpdateId"),
+                                    "bids": stream_data.get("bids", [])[:10],  # Top 10 bids
+                                    "asks": stream_data.get("asks", [])[:10],  # Top 10 asks
+                                    "lastPrice": last_prices.get(symbol, "0"),
+                                }
+                                
+                                # Send to all clients subscribed to this symbol
+                                if symbol in symbol_connections:
+                                    disconnected = set()
+                                    for connection in symbol_connections[symbol]:
+                                        try:
+                                            await connection.send_json(orderbook_data)
+                                        except Exception:
+                                            disconnected.add(connection)
+                                    
+                                    # Remove disconnected clients
+                                    symbol_connections[symbol].difference_update(disconnected)
                         
                     except websockets.exceptions.ConnectionClosed:
                         print(f"Binance WebSocket connection closed for {symbol.upper()}, reconnecting...")

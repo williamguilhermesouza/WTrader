@@ -3,6 +3,7 @@ export interface OrderBookData {
   lastUpdateId: number;
   bids: [string, string][];
   asks: [string, string][];
+  lastPrice?: string;
 }
 
 export interface BookWindow {

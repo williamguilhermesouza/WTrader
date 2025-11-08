@@ -11,6 +11,7 @@ export function OrderBook({ symbol }: OrderBookProps) {
     asks: [],
     symbol: '',
     lastUpdateId: 0,
+    lastPrice: '0',
   });
   const [connected, setConnected] = useState(false);
 
@@ -61,6 +62,8 @@ export function OrderBook({ symbol }: OrderBookProps) {
     orderBook.asks.length > 0 ? calculateTotal(orderBook.asks, orderBook.asks.length - 1) : 0
   );
 
+  const lastPrice = orderBook.lastPrice ? parseFloat(orderBook.lastPrice) : 0;
+
   return (
     <div className="flex flex-col h-full bg-background text-foreground">
       {/* Header */}
@@ -82,8 +85,14 @@ export function OrderBook({ symbol }: OrderBookProps) {
         <div className="bg-accent/20 px-4 py-3 border-b">
           <div className="flex justify-between items-center">
             <div className="text-sm">
-              <span className="text-muted-foreground">Spread: </span>
+              <span className="text-muted-foreground">Last Price: </span>
               <span className="font-semibold text-yellow-400">
+                ${lastPrice > 0 ? lastPrice.toFixed(2) : 'N/A'}
+              </span>
+            </div>
+            <div className="text-sm">
+              <span className="text-muted-foreground">Spread: </span>
+              <span className="font-semibold">
                 ${(parseFloat(orderBook.asks[0][0]) - parseFloat(orderBook.bids[0][0])).toFixed(2)}
               </span>
             </div>
@@ -106,23 +115,25 @@ export function OrderBook({ symbol }: OrderBookProps) {
               <h3 className="text-sm font-semibold text-red-400">Asks (Sell Orders)</h3>
             </div>
             <div className="px-4 py-2">
-              <div className="grid grid-cols-3 gap-2 text-xs font-semibold text-muted-foreground mb-2">
+              <div className="grid grid-cols-4 gap-2 text-xs font-semibold text-muted-foreground mb-2">
+                <div className="text-center">#</div>
                 <div>Price (USDT)</div>
                 <div className="text-right">Amount</div>
                 <div className="text-right">Total</div>
               </div>
               <div className="space-y-0.5">
-                {[...orderBook.asks].reverse().map((ask, index) => {
-                  const reversedIndex = orderBook.asks.length - 1 - index;
-                  const total = calculateTotal(orderBook.asks, reversedIndex);
+                {orderBook.asks.map((ask, index) => {
+                  const total = calculateTotal(orderBook.asks, index);
                   const barWidth = maxTotal > 0 ? (total / maxTotal) * 100 : 0;
+                  const priority = index + 1;
 
                   return (
-                    <div key={index} className="relative grid grid-cols-3 gap-2 py-1 hover:bg-accent/50 rounded">
+                    <div key={index} className="relative grid grid-cols-4 gap-2 py-1 hover:bg-accent/50 rounded">
                       <div
                         className="absolute inset-y-0 right-0 bg-red-500/10"
                         style={{ width: `${barWidth}%` }}
                       />
+                      <div className="relative z-10 text-sm font-mono text-center text-muted-foreground">{priority}</div>
                       <div className="relative z-10 text-sm font-mono text-red-400">{formatPrice(ask[0])}</div>
                       <div className="relative z-10 text-sm font-mono text-right">{formatAmount(ask[1])}</div>
                       <div className="relative z-10 text-sm font-mono text-right text-muted-foreground">
@@ -141,7 +152,8 @@ export function OrderBook({ symbol }: OrderBookProps) {
               <h3 className="text-sm font-semibold text-green-400">Bids (Buy Orders)</h3>
             </div>
             <div className="px-4 py-2">
-              <div className="grid grid-cols-3 gap-2 text-xs font-semibold text-muted-foreground mb-2">
+              <div className="grid grid-cols-4 gap-2 text-xs font-semibold text-muted-foreground mb-2">
+                <div className="text-center">#</div>
                 <div>Price (USDT)</div>
                 <div className="text-right">Amount</div>
                 <div className="text-right">Total</div>
@@ -150,13 +162,15 @@ export function OrderBook({ symbol }: OrderBookProps) {
                 {orderBook.bids.map((bid, index) => {
                   const total = calculateTotal(orderBook.bids, index);
                   const barWidth = maxTotal > 0 ? (total / maxTotal) * 100 : 0;
+                  const priority = index + 1;
 
                   return (
-                    <div key={index} className="relative grid grid-cols-3 gap-2 py-1 hover:bg-accent/50 rounded">
+                    <div key={index} className="relative grid grid-cols-4 gap-2 py-1 hover:bg-accent/50 rounded">
                       <div
                         className="absolute inset-y-0 right-0 bg-green-500/10"
                         style={{ width: `${barWidth}%` }}
                       />
+                      <div className="relative z-10 text-sm font-mono text-center text-muted-foreground">{priority}</div>
                       <div className="relative z-10 text-sm font-mono text-green-400">{formatPrice(bid[0])}</div>
                       <div className="relative z-10 text-sm font-mono text-right">{formatAmount(bid[1])}</div>
                       <div className="relative z-10 text-sm font-mono text-right text-muted-foreground">
