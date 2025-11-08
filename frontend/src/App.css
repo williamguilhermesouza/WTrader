@@ -1,0 +1,45 @@
+/* RC Dock Custom Styles */
+.dock {
+  background: hsl(var(--background));
+  color: hsl(var(--foreground));
+}
+
+.dock-panel {
+  background: hsl(var(--card));
+  border: 1px solid hsl(var(--border));
+}
+
+.dock-tab {
+  background: hsl(var(--muted));
+  color: hsl(var(--muted-foreground));
+  border: 1px solid hsl(var(--border));
+  border-bottom: none;
+}
+
+.dock-tab:hover {
+  background: hsl(var(--accent));
+  color: hsl(var(--accent-foreground));
+}
+
+.dock-tab-active {
+  background: hsl(var(--card)) !important;
+  color: hsl(var(--foreground)) !important;
+}
+
+.dock-tab-close-btn {
+  opacity: 0.5;
+}
+
+.dock-tab-close-btn:hover {
+  opacity: 1;
+}
+
+.dock-nav-wrap {
+  background: hsl(var(--card));
+  border-bottom: 1px solid hsl(var(--border));
+}
+
+.dock-bar {
+  background: hsl(var(--muted));
+}
+
